@@ -17,7 +17,7 @@ class MyModel(nn.Module):
         #  self.model.fc = nn
 
     def forward(self, x):
-        return 0
+        return self.model(x)
 
 
 
