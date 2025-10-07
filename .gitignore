@@ -132,3 +132,7 @@ pip-selfcheck.json
 
 # Data
 data
+
+session
+
+plots
