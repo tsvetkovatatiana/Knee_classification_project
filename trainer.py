@@ -135,16 +135,26 @@ def validation_model(model, val_loader, criterion, device):
     model.eval()
     val_loss = 0
 
+    with torch.no_grad():
+        for batch in val_loader:
+            inputs = batch['img']
+            targets = batch['label']
 
-    for batch in val_loader:
-        inputs = batch['image']
-        targets = batch['label']
+            if not isinstance(inputs, torch.Tensor):
+                inputs = torch.tensor(inputs, dtype=torch.float32)
+            if not isinstance(targets, torch.Tensor):
+                targets = torch.tensor(targets, dtype=torch.long)
 
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
+            # Ensure targets are 1D
+            if targets.dim() > 1:
+                targets = targets.squeeze()
 
+            inputs, targets = inputs.to(device), targets.to(device)
 
-        val_loss += loss.item()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+
+            val_loss += loss.item()
 
     return val_loss / len(val_loader)
 
