@@ -29,7 +29,7 @@ kl_grades_distribution = sns.countplot(data=metadata, x="KL", palette='viridis',
 plt.title('Distribution of KL Grades of the whole dataset', fontsize=16, fontweight='bold')
 plt.xlabel('KL Grade', fontsize=12)
 plt.ylabel('Count', fontsize=12)
-plt.savefig('Distribution_of_KL_grades_whole dataset.png', dpi=300, bbox_inches='tight')
+plt.savefig('Distribution_of_KL_grades_whole_dataset.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("KL distribution --------------")
