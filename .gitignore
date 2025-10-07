@@ -133,6 +133,6 @@ pip-selfcheck.json
 # Data
 data
 
-/session/
+session/
 
-/plots/
+plots/
