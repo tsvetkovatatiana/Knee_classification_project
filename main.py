@@ -31,9 +31,8 @@ def main():
         model = MyModel(args.backbone)
 
         # 6. Train the model
-        train_model(model, train_loader, val_loader)
+        train_model(model, train_loader, val_loader, fold)
 
-    print()
 
 if __name__ == "__main__":
     main()
