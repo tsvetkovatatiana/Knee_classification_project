@@ -159,3 +159,137 @@ def validation_model(model, val_loader, criterion, device):
     return val_loss / len(val_loader)
 
 
+def calculate_val_accuracy_metrics(model, val_loader, device):
+    model.eval()
+
+    all_preds, all_labels, all_probs = [], [], []
+
+    with torch.no_grad():
+        for batch in val_loader:
+            inputs = batch['img']
+            labels = batch['label']
+
+            if not isinstance(inputs, torch.Tensor):
+                inputs = torch.tensor(inputs, dtype=torch.float32)
+            if not isinstance(labels, torch.Tensor):
+                labels = torch.tensor(labels, dtype=torch.long)
+
+            # Ensure labels are 1D
+            if labels.dim() > 1:
+                labels = labels.squeeze()
+
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            outputs = model(inputs)
+
+            # Get probabilities for all classes
+            probs = torch.softmax(outputs, dim=1)
+            preds = torch.argmax(outputs, dim=1)
+
+            all_probs.append(probs.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    # Concatenate all probabilities
+    all_probs = np.vstack(all_probs)
+
+    balanced_accuracy = balanced_accuracy_score(all_labels, all_preds)
+
+    # For multi-class: use one-vs-rest ROC-AUC
+    try:
+        num_classes = all_probs.shape[1]
+        if num_classes == 2:
+            # Binary classification: use probability of positive class
+            roc_auc = roc_auc_score(all_labels, all_probs[:, 1])
+        else:
+            # Multi-class: use ovr (one-vs-rest) with macro averaging
+            roc_auc = roc_auc_score(all_labels, all_probs, multi_class='ovr', average='macro')
+    except (ValueError, IndexError):
+        roc_auc = float('nan')
+
+    # For multi-class: use macro averaging for average precision
+    try:
+        if num_classes == 2:
+            avg_precision = average_precision_score(all_labels, all_probs[:, 1])
+        else:
+            # Binarize labels for multi-class average precision
+            from sklearn.preprocessing import label_binarize
+            y_bin = label_binarize(all_labels, classes=range(num_classes))
+            avg_precision = average_precision_score(y_bin, all_probs, average='macro')
+    except (ValueError, IndexError):
+        avg_precision = float('nan')
+
+    return {
+        "balanced_accuracy": balanced_accuracy,
+        "roc_auc": roc_auc,
+        "avg_precision": avg_precision
+    }
+
+
+def calculate_train_accuracy_metrics(all_labels, all_preds, all_probs):
+    # Ensure all_probs is a numpy array
+    if not isinstance(all_probs, np.ndarray):
+        all_probs = np.array(all_probs)
+
+    # Handle case where probs might be a list of arrays
+    if all_probs.ndim == 1 or (all_probs.ndim == 3):
+        raise ValueError(f"Unexpected all_probs shape: {all_probs.shape}. Expected 2D array.")
+
+    balanced_accuracy = balanced_accuracy_score(all_labels, all_preds)
+
+    num_classes = all_probs.shape[1]
+
+    try:
+        if num_classes == 2:
+            roc_auc = roc_auc_score(all_labels, all_probs[:, 1])
+        else:
+            roc_auc = roc_auc_score(all_labels, all_probs, multi_class='ovr', average='macro')
+    except (ValueError, IndexError):
+        roc_auc = float('nan')
+
+    try:
+        if num_classes == 2:
+            avg_precision = average_precision_score(all_labels, all_probs[:, 1])
+        else:
+            from sklearn.preprocessing import label_binarize
+            y_bin = label_binarize(all_labels, classes=range(num_classes))
+            avg_precision = average_precision_score(y_bin, all_probs, average='macro')
+    except (ValueError, IndexError):
+        avg_precision = float('nan')
+
+    return {
+        "balanced_accuracy": balanced_accuracy,
+        "roc_auc": roc_auc,
+        "avg_precision": avg_precision
+    }
+
+
+def plot_metrics(out_dir, fold, train_losses, val_losses,
+                 train_bal_accs, val_bal_accs,
+                 train_roc_aucs, val_roc_aucs,
+                 train_avg_precs, val_avg_precs):
+    # Create a separate folder for each fold
+    fold_dir = os.path.join(out_dir, f"fold_{fold}")
+    os.makedirs(fold_dir, exist_ok=True)
+
+    epochs = range(1, len(train_losses) + 1)
+
+    def save_plot(train_values, val_values, title, ylabel, filename):
+        plt.figure()
+        plt.plot(epochs, train_values, label='Train')
+        plt.plot(epochs, val_values, label='Validation')
+        plt.xlabel('Epoch')
+        plt.ylabel(ylabel)
+        plt.title(f'{title} - Fold {fold}')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(fold_dir, f"{filename}.png"))
+        plt.close()
+
+    save_plot(train_losses, val_losses, 'Loss over Epochs', 'Loss', 'loss')
+    save_plot(train_bal_accs, val_bal_accs, 'Balanced Accuracy over Epochs', 'Balanced Accuracy', 'balanced_accuracy')
+    save_plot(train_roc_aucs, val_roc_aucs, 'ROC-AUC over Epochs', 'ROC-AUC', 'roc_auc')
+    save_plot(train_avg_precs, val_avg_precs, 'Average Precision over Epochs', 'Average Precision', 'avg_precision')
+
+    print(f"📊 Training curves for fold {fold} saved in {fold_dir}/ as PNG files.")
